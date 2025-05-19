@@ -6,6 +6,8 @@ import httpx
 from typing import List, Dict, Any
 from fastapi import status
 from collections import OrderedDict
+from log_utils import log_ip
+import time
 
 app = FastAPI()
 
@@ -35,6 +37,7 @@ async def fetch_url_contents(urls: List[str]) -> Dict[str, Any]:
     Fetches the content of each URL in the list.
     If the content is JSON, parses it; otherwise, returns as text.
     Returns a dict mapping url -> content.
+    Logs JSON parsing times for each URL.
     """
     results = {}
     async with httpx.AsyncClient() as client:
@@ -42,10 +45,19 @@ async def fetch_url_contents(urls: List[str]) -> Dict[str, Any]:
             try:
                 resp = await client.get(url)
                 resp.raise_for_status()
+                parse_start = time.time()
                 try:
                     results[url] = resp.json()
+                    parse_end = time.time()
+                    log_ip(
+                        f"JSON parse time for {url}: {parse_end - parse_start:.4f} seconds"
+                    )
                 except Exception:
                     results[url] = resp.text
+                    parse_end = time.time()
+                    log_ip(
+                        f"Text parse time for {url}: {parse_end - parse_start:.4f} seconds"
+                    )
             except Exception as e:
                 results[url] = f"Error: {e}"
     return results
@@ -78,10 +90,28 @@ async def process_and_cache_urls(text_blob: str):
     }
     contents = await fetch_url_contents([u for u in url_map.values() if u])
 
+    for url in url_map.values():
+        if url:
+            log_ip(f"Fetched URL: {url}")
+
     cache["before"]["json"] = contents.get(before_json)
     cache["before"]["log"] = contents.get(before_log)
     cache["after"]["json"] = contents.get(after_json)
     cache["after"]["log"] = contents.get(after_log)
+
+    # Log built cache size
+    import sys
+
+    cache_size = sys.getsizeof(cache)
+    log_ip(f"Cache size after build: {cache_size} bytes")
+
+
+@app.middleware("http")
+async def log_request_ip(request: Request, call_next):
+    client_ip = request.client.host if request.client else "unknown"
+    log_ip(client_ip)
+    response = await call_next(request)
+    return response
 
 
 @app.get("/", response_class=HTMLResponse)
