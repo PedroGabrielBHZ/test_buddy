@@ -5,18 +5,6 @@
     <title>Check Test Status</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .floating-btn {
-            position: fixed;
-            top: 40px;
-            right: 8vw;
-            z-index: 1050;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-        }
-
-        .floating-btn+.floating-btn {
-            top: 100px;
-        }
-
         @media (max-width: 991px) {
             .floating-btn {
                 position: static;
@@ -33,16 +21,15 @@
 </head>
 
 <body class="bg-light">
-    <a href="/fail_to_pass_report" class="btn btn-warning floating-btn fw-bold">Fail-to-Pass Report</a>
-    <button type="button" class="btn btn-danger floating-btn fw-bold" style="right: 8vw; top: 100px;"
-        data-bs-toggle="modal" data-bs-target="#resetModal">
-        Return to Main Page &amp; Reset Cache &amp; Report
-    </button>
     <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-md-8 col-lg-6">
                 <div class="card shadow-sm">
                     <div class="card-body">
+                        <div class="d-grid gap-2 mb-3">
+                            <a href="/fail_to_pass_report" class="btn btn-warning fw-bold">Fail-to-Pass Automatic
+                                Report</a>
+                        </div>
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h1 class="card-title text-center mb-0 flex-grow-1">Check Test Status</h1>
                         </div>
@@ -51,8 +38,14 @@
                                 <label for="test_name" class="form-label">Test Name:</label>
                                 <input type="text" id="test_name" name="test_name" class="form-control" required>
                             </div>
-                            <div class="d-grid">
+                            <div class="d-grid gap-2 mb-3">
                                 <button type="submit" class="btn btn-primary">Check</button>
+                            </div>
+                            <div class="d-grid gap-2 mb-3">
+                                <button type="button" class="btn btn-danger fw-bold" data-bs-toggle="modal"
+                                    data-bs-target="#resetModal">
+                                    Return to Main Page &amp; Reset Cache &amp; Report
+                                </button>
                             </div>
                         </form>
                         {% if result is not none %}
@@ -167,6 +160,13 @@
             </div>
         </div>
     </div>
+    <footer class="text-center mt-5 mb-3 text-muted small">
+        <hr>
+        Made with love <span title="coffee">☕</span> by <a href="https://www.linkedin.com/in/pedro-soares-34a81529a/"
+            target="_blank">Pedro Soares</a> |
+        <a href="https://github.com/PedroGabrielBHZ" target="_blank">GitHub</a> |
+        <a href="https://pedrogabrielbhz.github.io/website/" target="_blank">Website</a>
+    </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
