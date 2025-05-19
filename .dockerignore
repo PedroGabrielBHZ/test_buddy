@@ -1,0 +1,28 @@
+# flyctl launch added from .gitignore
+# Byte-compiled / optimized / DLL files
+**/__pycache__
+**/*.py[cod]
+
+# Log files
+**/access.log
+
+# Environment files
+**/.env
+
+# OS generated files
+**/.DS_Store
+**/Thumbs.db
+
+# Python virtual environments
+**/venv
+**/ENV
+
+# Docker
+**/*.pid
+
+# VSCode
+**/.vscode
+
+# Ignore examples directory
+examples
+fly.toml
