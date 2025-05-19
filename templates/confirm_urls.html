@@ -14,21 +14,41 @@
                     <div class="card-body">
                         <h2 class="card-title text-center mb-4">Confirm URLs</h2>
                         <div class="mb-3">
-                            <div class="mb-2">
-                                <strong>Before JSON URL:</strong>
-                                <div><a href="{{ before_json_url }}" target="_blank">{{ before_json_url }}</a></div>
+                            <div class="card mb-3 border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <span class="fw-bold" style="color: #fff;">Before <span class="fw-bold"
+                                            style="color: #ffe082;">&#8592;</span></span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <strong>Before JSON URL:</strong>
+                                        <div><a href="{{ before_json_url }}" target="_blank">{{ before_json_url }}</a>
+                                        </div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>Before Log URL:</strong>
+                                        <div><a href="{{ before_log_url }}" target="_blank">{{ before_log_url }}</a>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-2">
-                                <strong>Before Log URL:</strong>
-                                <div><a href="{{ before_log_url }}" target="_blank">{{ before_log_url }}</a></div>
-                            </div>
-                            <div class="mb-2">
-                                <strong>After JSON URL:</strong>
-                                <div><a href="{{ after_json_url }}" target="_blank">{{ after_json_url }}</a></div>
-                            </div>
-                            <div class="mb-2">
-                                <strong>After Log URL:</strong>
-                                <div><a href="{{ after_log_url }}" target="_blank">{{ after_log_url }}</a></div>
+                            <div class="card mb-3 border-success">
+                                <div class="card-header bg-success text-white">
+                                    <span class="fw-bold" style="color: #fff;">After <span class="fw-bold"
+                                            style="color: #ffe082;">&#8594;</span></span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <strong>After JSON URL:</strong>
+                                        <div><a href="{{ after_json_url }}" target="_blank">{{ after_json_url }}</a>
+                                        </div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>After Log URL:</strong>
+                                        <div><a href="{{ after_log_url }}" target="_blank">{{ after_log_url }}</a>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <form action="/confirm_urls" method="post">
