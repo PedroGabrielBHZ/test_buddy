@@ -6,8 +6,6 @@ import httpx
 from typing import List, Dict, Any
 from fastapi import status
 from collections import OrderedDict
-from log_utils import log_ip
-import time
 import uuid
 
 app = FastAPI()
@@ -101,19 +99,10 @@ async def fetch_url_contents(urls: List[str]) -> Dict[str, Any]:
             try:
                 resp = await client.get(url)
                 resp.raise_for_status()
-                parse_start = time.time()
                 try:
                     results[url] = resp.json()
-                    parse_end = time.time()
-                    log_ip(
-                        f"JSON parse time for {url}: {parse_end - parse_start:.4f} seconds"
-                    )
                 except Exception:
                     results[url] = resp.text
-                    parse_end = time.time()
-                    log_ip(
-                        f"Text parse time for {url}: {parse_end - parse_start:.4f} seconds"
-                    )
             except Exception as e:
                 results[url] = f"Error: {e}"
     return results
@@ -155,10 +144,6 @@ async def process_and_cache_urls(text_blob: str, user_cache=None, user_report=No
     }
     contents = await fetch_url_contents([u for u in url_map.values() if u])
 
-    for url in url_map.values():
-        if url:
-            log_ip(f"Fetched URL: {url}")
-
     if user_cache is not None:
         user_cache["before"]["json"] = contents.get(before_json)
         user_cache["before"]["log"] = contents.get(before_log)
@@ -167,7 +152,6 @@ async def process_and_cache_urls(text_blob: str, user_cache=None, user_report=No
         import sys
 
         cache_size = sys.getsizeof(user_cache)
-        log_ip(f"Cache size after build: {cache_size} bytes")
     else:
         cache["before"]["json"] = contents.get(before_json)
         cache["before"]["log"] = contents.get(before_log)
@@ -175,29 +159,23 @@ async def process_and_cache_urls(text_blob: str, user_cache=None, user_report=No
         cache["after"]["log"] = contents.get(after_log)
         import sys
 
-        cache_size = sys.getsizeof(cache)
-        log_ip(f"Cache size after build: {cache_size} bytes")
-
-
-@app.middleware("http")
-async def log_request_ip(request: Request, call_next):
-    client_ip = request.client.host if request.client else "unknown"
-    log_ip(client_ip)
-    response = await call_next(request)
-    return response
-
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    response = Response()
-    session_id = get_session_id(request, response)
+    session_id = get_session_id(request, Response())
     user_cache = get_user_cache(session_id)
-    # Set cookie manually on the response
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "index.html",
         {"request": request, "cache": user_cache},
-        headers=response.headers,
     )
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @app.post("/submit", response_class=HTMLResponse)
@@ -213,18 +191,25 @@ async def submit_data(request: Request, text_blob: str = Form(...)):
         user_report["BEFORE"].clear()
         user_report["AFTER"].clear()
         warning = f"Expected exactly 4 URLs in the text blob, but found {len(urls)}. Please re-submit with the correct input."
-        return templates.TemplateResponse(
+        template_response = templates.TemplateResponse(
             "index.html",
             {"request": request, "cache": user_cache, "warning": warning},
-            headers=response.headers,
         )
+        template_response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_id,
+            max_age=SESSION_COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+        )
+        return template_response
     before_json, before_log, after_json, after_log = (urls + [None] * 4)[:4]
     user_cache["urls"] = urls
     user_cache["before_json_url"] = before_json
     user_cache["after_json_url"] = after_json
     user_cache["before_log_url"] = before_log
     user_cache["after_log_url"] = after_log
-    return templates.TemplateResponse(
+    template_response = templates.TemplateResponse(
         "confirm_urls.html",
         {
             "request": request,
@@ -234,18 +219,34 @@ async def submit_data(request: Request, text_blob: str = Form(...)):
             "after_log_url": after_log,
             "text_blob": text_blob,
         },
-        headers=response.headers,
     )
+    template_response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return template_response
 
 
 @app.post("/confirm_urls", response_class=HTMLResponse)
 async def confirm_urls(request: Request, text_blob: str = Form(...)):
-    response = Response()
-    session_id = get_session_id(request, response)
+    session_id = get_session_id(request, Response())
     user_cache = get_user_cache(session_id)
     user_report = get_user_report(session_id)
     await process_and_cache_urls(text_blob, user_cache, user_report)
-    return RedirectResponse(url="/check_test", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse(
+        url="/check_test", status_code=status.HTTP_303_SEE_OTHER
+    )
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @app.get("/check_test", response_class=HTMLResponse)
@@ -254,11 +255,18 @@ async def check_test_form(request: Request):
     session_id = get_session_id(request, response)
     user_cache = get_user_cache(session_id)
     user_report = get_user_report(session_id)
-    return templates.TemplateResponse(
+    template_response = templates.TemplateResponse(
         "check_test.html",
         {"request": request, "result": None, "report": user_report},
-        headers=response.headers,
     )
+    template_response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return template_response
 
 
 @app.post("/check_test", response_class=HTMLResponse)
@@ -303,7 +311,7 @@ async def check_test_result(request: Request, test_name: str = Form(...)):
         result["status_changed"] = False
         result["before_test"] = before_test
         result["after_test"] = after_test
-    return templates.TemplateResponse(
+    template_response = templates.TemplateResponse(
         "check_test.html",
         {
             "request": request,
@@ -311,14 +319,20 @@ async def check_test_result(request: Request, test_name: str = Form(...)):
             "test_name": test_name,
             "report": user_report,
         },
-        headers=response.headers,
     )
+    template_response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return template_response
 
 
 @app.post("/add_to_report")
 async def add_to_report(request: Request, test_name: str = Form(...)):
-    response = Response()
-    session_id = get_session_id(request, response)
+    session_id = get_session_id(request, Response())
     user_cache = get_user_cache(session_id)
     user_report = get_user_report(session_id)
     before_json = user_cache.get("before", {}).get("json")
@@ -346,29 +360,51 @@ async def add_to_report(request: Request, test_name: str = Form(...)):
     user_report = OrderedDict(
         [("BEFORE", user_report["BEFORE"]), ("AFTER", user_report["AFTER"])]
     )
-    return RedirectResponse(url="/check_test", status_code=303)
+    response = RedirectResponse(url="/check_test", status_code=303)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @app.post("/reset")
 async def reset_cache(request: Request):
-    response = Response()
-    session_id = get_session_id(request, response)
+    session_id = get_session_id(request, Response())
     user_cache = get_user_cache(session_id)
     user_report = get_user_report(session_id)
     user_cache.clear()
     user_report["BEFORE"].clear()
     user_report["AFTER"].clear()
-    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @app.post("/reset_report")
 async def reset_report(request: Request):
-    response = Response()
-    session_id = get_session_id(request, response)
+    session_id = get_session_id(request, Response())
     user_report = get_user_report(session_id)
     user_report["BEFORE"].clear()
     user_report["AFTER"].clear()
-    return RedirectResponse(url="/check_test", status_code=303)
+    response = RedirectResponse(url="/check_test", status_code=303)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @app.get("/fail_to_pass_report", response_class=HTMLResponse)
@@ -427,8 +463,15 @@ async def fail_to_pass_report(request: Request):
                     "not_unique_after": after_counts[name] > 1,
                 }
             )
-    return templates.TemplateResponse(
+    template_response = templates.TemplateResponse(
         "fail_to_pass_report.html",
         {"request": request, "fail_to_pass": fail_to_pass},
-        headers=response.headers,
     )
+    template_response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return template_response
