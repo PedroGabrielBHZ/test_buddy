@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, Request, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 import re
 import httpx
@@ -8,6 +8,7 @@ from fastapi import status
 from collections import OrderedDict
 from log_utils import log_ip
 import time
+import uuid
 
 app = FastAPI()
 
@@ -20,6 +21,61 @@ templates = Jinja2Templates(directory="templates")
 # Global variable to store the submitted data
 cache = {}
 report = {"BEFORE": [], "AFTER": []}
+
+# Per-session storage
+user_caches = {}
+user_reports = {}
+
+SESSION_COOKIE_NAME = "session_id"
+SESSION_COOKIE_MAX_AGE = 60 * 30  # 30 minutes
+
+# Store session creation/last-access times for expiry
+session_times = {}
+
+import time as _time
+
+
+def get_session_id(request: Request, response: Response):
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
+    now = int(_time.time())
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_id,
+            max_age=SESSION_COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+        )
+        session_times[session_id] = now
+    else:
+        # Update last access time
+        session_times[session_id] = now
+    return session_id
+
+
+def get_user_cache(session_id):
+    # Check for session expiry
+    now = int(_time.time())
+    last_access = session_times.get(session_id)
+    if last_access is not None and now - last_access > SESSION_COOKIE_MAX_AGE:
+        user_caches.pop(session_id, None)
+        user_reports.pop(session_id, None)
+        session_times.pop(session_id, None)
+        return {}
+    return user_caches.setdefault(session_id, {})
+
+
+def get_user_report(session_id):
+    # Check for session expiry
+    now = int(_time.time())
+    last_access = session_times.get(session_id)
+    if last_access is not None and now - last_access > SESSION_COOKIE_MAX_AGE:
+        user_caches.pop(session_id, None)
+        user_reports.pop(session_id, None)
+        session_times.pop(session_id, None)
+        return {"BEFORE": [], "AFTER": []}
+    return user_reports.setdefault(session_id, {"BEFORE": [], "AFTER": []})
 
 
 def extract_urls_from_text_blob(text):
@@ -63,23 +119,32 @@ async def fetch_url_contents(urls: List[str]) -> Dict[str, Any]:
     return results
 
 
-async def process_and_cache_urls(text_blob: str):
+async def process_and_cache_urls(text_blob: str, user_cache=None, user_report=None):
     urls = extract_urls_from_text_blob(text_blob)
     if len(urls) != 4:
         # Clear cache and report to "crash/reinitialize"
-        cache.clear()
-        report["BEFORE"].clear()
-        report["AFTER"].clear()
+        if user_cache is not None:
+            user_cache.clear()
+        if user_report is not None:
+            user_report["BEFORE"].clear()
+            user_report["AFTER"].clear()
         raise HTTPException(
             status_code=400,
             detail=f"Expected exactly 4 URLs in the text blob, but found {len(urls)}. Please re-submit with the correct input.",
         )
-    cache["urls"] = urls
+    if user_cache is not None:
+        user_cache["urls"] = urls
+    else:
+        cache["urls"] = urls
 
     # Organize URLs into before/after and json/log
     before_json, before_log, after_json, after_log = (urls + [None] * 4)[:4]
-    cache["before"] = {"json_url": before_json, "log_url": before_log}
-    cache["after"] = {"json_url": after_json, "log_url": after_log}
+    if user_cache is not None:
+        user_cache["before"] = {"json_url": before_json, "log_url": before_log}
+        user_cache["after"] = {"json_url": after_json, "log_url": after_log}
+    else:
+        cache["before"] = {"json_url": before_json, "log_url": before_log}
+        cache["after"] = {"json_url": after_json, "log_url": after_log}
 
     # Fetch contents asynchronously
     url_map = {
@@ -94,16 +159,24 @@ async def process_and_cache_urls(text_blob: str):
         if url:
             log_ip(f"Fetched URL: {url}")
 
-    cache["before"]["json"] = contents.get(before_json)
-    cache["before"]["log"] = contents.get(before_log)
-    cache["after"]["json"] = contents.get(after_json)
-    cache["after"]["log"] = contents.get(after_log)
+    if user_cache is not None:
+        user_cache["before"]["json"] = contents.get(before_json)
+        user_cache["before"]["log"] = contents.get(before_log)
+        user_cache["after"]["json"] = contents.get(after_json)
+        user_cache["after"]["log"] = contents.get(after_log)
+        import sys
 
-    # Log built cache size
-    import sys
+        cache_size = sys.getsizeof(user_cache)
+        log_ip(f"Cache size after build: {cache_size} bytes")
+    else:
+        cache["before"]["json"] = contents.get(before_json)
+        cache["before"]["log"] = contents.get(before_log)
+        cache["after"]["json"] = contents.get(after_json)
+        cache["after"]["log"] = contents.get(after_log)
+        import sys
 
-    cache_size = sys.getsizeof(cache)
-    log_ip(f"Cache size after build: {cache_size} bytes")
+        cache_size = sys.getsizeof(cache)
+        log_ip(f"Cache size after build: {cache_size} bytes")
 
 
 @app.middleware("http")
@@ -116,34 +189,41 @@ async def log_request_ip(request: Request, call_next):
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    # Set cookie manually on the response
     return templates.TemplateResponse(
-        "index.html", {"request": request, "cache": cache}
+        "index.html",
+        {"request": request, "cache": user_cache},
+        headers=response.headers,
     )
 
 
 @app.post("/submit", response_class=HTMLResponse)
 async def submit_data(request: Request, text_blob: str = Form(...)):
-    cache["text_blob"] = text_blob
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    user_report = get_user_report(session_id)
+    user_cache["text_blob"] = text_blob
     urls = extract_urls_from_text_blob(text_blob)
     if len(urls) != 4:
-        # Clear cache and report to "crash/reinitialize"
-        cache.clear()
-        report["BEFORE"].clear()
-        report["AFTER"].clear()
+        user_cache.clear()
+        user_report["BEFORE"].clear()
+        user_report["AFTER"].clear()
         warning = f"Expected exactly 4 URLs in the text blob, but found {len(urls)}. Please re-submit with the correct input."
         return templates.TemplateResponse(
             "index.html",
-            {"request": request, "cache": cache, "warning": warning},
+            {"request": request, "cache": user_cache, "warning": warning},
+            headers=response.headers,
         )
-    # Organize URLs into before/after and json/log
     before_json, before_log, after_json, after_log = (urls + [None] * 4)[:4]
-    cache["urls"] = urls
-    cache["before_json_url"] = before_json
-    cache["after_json_url"] = after_json
-    cache["before_log_url"] = before_log
-    cache["after_log_url"] = after_log
-
-    # Ask for user confirmation before fetching
+    user_cache["urls"] = urls
+    user_cache["before_json_url"] = before_json
+    user_cache["after_json_url"] = after_json
+    user_cache["before_log_url"] = before_log
+    user_cache["after_log_url"] = after_log
     return templates.TemplateResponse(
         "confirm_urls.html",
         {
@@ -154,26 +234,41 @@ async def submit_data(request: Request, text_blob: str = Form(...)):
             "after_log_url": after_log,
             "text_blob": text_blob,
         },
+        headers=response.headers,
     )
 
 
 @app.post("/confirm_urls", response_class=HTMLResponse)
 async def confirm_urls(request: Request, text_blob: str = Form(...)):
-    await process_and_cache_urls(text_blob)
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    user_report = get_user_report(session_id)
+    await process_and_cache_urls(text_blob, user_cache, user_report)
     return RedirectResponse(url="/check_test", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/check_test", response_class=HTMLResponse)
 async def check_test_form(request: Request):
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    user_report = get_user_report(session_id)
     return templates.TemplateResponse(
-        "check_test.html", {"request": request, "result": None, "report": report}
+        "check_test.html",
+        {"request": request, "result": None, "report": user_report},
+        headers=response.headers,
     )
 
 
 @app.post("/check_test", response_class=HTMLResponse)
 async def check_test_result(request: Request, test_name: str = Form(...)):
-    before_json = cache.get("before", {}).get("json")
-    after_json = cache.get("after", {}).get("json")
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    user_report = get_user_report(session_id)
+    before_json = user_cache.get("before", {}).get("json")
+    after_json = user_cache.get("after", {}).get("json")
     result = {}
 
     def find_test(json_data, name):
@@ -191,7 +286,6 @@ async def check_test_result(request: Request, test_name: str = Form(...)):
 
     before_test = find_test(before_json, test_name)
     after_test = find_test(after_json, test_name)
-
     if before_test and after_test:
         result["found_in_before"] = True
         result["found_in_after"] = True
@@ -209,23 +303,26 @@ async def check_test_result(request: Request, test_name: str = Form(...)):
         result["status_changed"] = False
         result["before_test"] = before_test
         result["after_test"] = after_test
-
     return templates.TemplateResponse(
         "check_test.html",
         {
             "request": request,
             "result": result,
             "test_name": test_name,
-            "report": report,
+            "report": user_report,
         },
+        headers=response.headers,
     )
 
 
 @app.post("/add_to_report")
-async def add_to_report(test_name: str = Form(...)):
-    global report
-    before_json = cache.get("before", {}).get("json")
-    after_json = cache.get("after", {}).get("json")
+async def add_to_report(request: Request, test_name: str = Form(...)):
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    user_report = get_user_report(session_id)
+    before_json = user_cache.get("before", {}).get("json")
+    after_json = user_cache.get("after", {}).get("json")
 
     def find_test(json_data, name):
         if isinstance(json_data, list):
@@ -242,39 +339,45 @@ async def add_to_report(test_name: str = Form(...)):
 
     before_test = find_test(before_json, test_name)
     after_test = find_test(after_json, test_name)
-
-    # Ensure BEFORE comes before AFTER in the report dict
-    if before_test and before_test not in report["BEFORE"]:
-        report["BEFORE"].append(before_test)
-    if after_test and after_test not in report["AFTER"]:
-        report["AFTER"].append(after_test)
-
-    # Reorder keys to ensure BEFORE is first
-    report = OrderedDict([("BEFORE", report["BEFORE"]), ("AFTER", report["AFTER"])])
-
+    if before_test and before_test not in user_report["BEFORE"]:
+        user_report["BEFORE"].append(before_test)
+    if after_test and after_test not in user_report["AFTER"]:
+        user_report["AFTER"].append(after_test)
+    user_report = OrderedDict(
+        [("BEFORE", user_report["BEFORE"]), ("AFTER", user_report["AFTER"])]
+    )
     return RedirectResponse(url="/check_test", status_code=303)
 
 
 @app.post("/reset")
-async def reset_cache():
-    global report
-    cache.clear()
-    report = OrderedDict([("BEFORE", []), ("AFTER", [])])
+async def reset_cache(request: Request):
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    user_report = get_user_report(session_id)
+    user_cache.clear()
+    user_report["BEFORE"].clear()
+    user_report["AFTER"].clear()
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/reset_report")
-async def reset_report():
-    global report
-    report = OrderedDict([("BEFORE", []), ("AFTER", [])])
+async def reset_report(request: Request):
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_report = get_user_report(session_id)
+    user_report["BEFORE"].clear()
+    user_report["AFTER"].clear()
     return RedirectResponse(url="/check_test", status_code=303)
 
 
 @app.get("/fail_to_pass_report", response_class=HTMLResponse)
 async def fail_to_pass_report(request: Request):
-    # Use the current cache, not the report
-    before_json = cache.get("before", {}).get("json")
-    after_json = cache.get("after", {}).get("json")
+    response = Response()
+    session_id = get_session_id(request, response)
+    user_cache = get_user_cache(session_id)
+    before_json = user_cache.get("before", {}).get("json")
+    after_json = user_cache.get("after", {}).get("json")
 
     def get_tests(json_data):
         if isinstance(json_data, list):
@@ -301,13 +404,10 @@ async def fail_to_pass_report(request: Request):
     after_tests_list = get_tests(after_json)
     before_tests = {t["name"]: t for t in before_tests_list}
     after_tests = {t["name"]: t for t in after_tests_list}
-
-    # Count occurrences for uniqueness
     from collections import Counter
 
     before_counts = Counter(t["name"] for t in before_tests_list)
     after_counts = Counter(t["name"] for t in after_tests_list)
-
     fail_to_pass = []
     for name, before in before_tests.items():
         after = after_tests.get(name)
@@ -328,5 +428,7 @@ async def fail_to_pass_report(request: Request):
                 }
             )
     return templates.TemplateResponse(
-        "fail_to_pass_report.html", {"request": request, "fail_to_pass": fail_to_pass}
+        "fail_to_pass_report.html",
+        {"request": request, "fail_to_pass": fail_to_pass},
+        headers=response.headers,
     )
