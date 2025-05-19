@@ -12,10 +12,6 @@ app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
-# curl -H "Accept: application/vnd.github.v3.diff" commit_url
-# curl -H "Accept: application/vnd.github.v3.diff" https://api.github.com/repos/VictoriaMetrics/VictoriaMetrics/commits/f77dde837a043da1e628dd4390da43f769d7621a
-
-
 # Global variable to store the submitted data
 cache = {}
 report = {"BEFORE": [], "AFTER": []}
