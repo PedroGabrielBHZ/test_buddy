@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Check Test Status</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .floating-btn {
+            position: fixed;
+            top: 40px;
+            right: 8vw;
+            z-index: 1050;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .floating-btn+.floating-btn {
+            top: 100px;
+        }
+
+        @media (max-width: 991px) {
+            .floating-btn {
+                position: static;
+                margin-bottom: 1rem;
+                width: 100%;
+                box-shadow: none;
+            }
+
+            .floating-btn+.floating-btn {
+                top: auto;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <a href="/fail_to_pass_report" class="btn btn-warning floating-btn fw-bold">Fail-to-Pass Report</a>
+    <button type="button" class="btn btn-danger floating-btn fw-bold" style="right: 8vw; top: 100px;"
+        data-bs-toggle="modal" data-bs-target="#resetModal">
+        Return to Main Page &amp; Reset Cache &amp; Report
+    </button>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h1 class="card-title text-center mb-0 flex-grow-1">Check Test Status</h1>
+                        </div>
+                        <form action="/check_test" method="post">
+                            <div class="mb-3">
+                                <label for="test_name" class="form-label">Test Name:</label>
+                                <input type="text" id="test_name" name="test_name" class="form-control" required>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Check</button>
+                            </div>
+                        </form>
+                        {% if result is not none %}
+                        <hr>
+                        <h2 class="h5 mt-4">Result for "{{ test_name }}":</h2>
+                        <div class="mb-3">
+                            <h5>Found test</h5>
+                            <div class="mb-2">
+                                Found in BEFORE JSON:
+                                {% if result.found_in_before %}
+                                <span class="badge bg-success">True</span>
+                                {% else %}
+                                <span class="badge bg-danger">False</span>
+                                {% endif %}
+                            </div>
+                            <div class="mb-2">
+                                Found in AFTER JSON:
+                                {% if result.found_in_after %}
+                                <span class="badge bg-success">True</span>
+                                {% else %}
+                                <span class="badge bg-danger">False</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if result.found_in_before and result.found_in_after %}
+                        <div class="mb-3">
+                            <h5>Test Status</h5>
+                            <div class="mb-2">
+                                Status BEFORE:
+                                {% if result.before_status == "PASSED" %}
+                                <span class="badge bg-success">PASSED</span>
+                                {% elif result.before_status == "FAILED" %}
+                                <span class="badge bg-danger">FAILED</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ result.before_status }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="mb-2">
+                                Status AFTER:
+                                {% if result.after_status == "PASSED" %}
+                                <span class="badge bg-success">PASSED</span>
+                                {% elif result.after_status == "FAILED" %}
+                                <span class="badge bg-danger">FAILED</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ result.after_status }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <h5>Verdict</h5>
+                            {% if result.status_changed %}
+                            <div class="alert alert-success" role="alert">
+                                <strong>Success!</strong> The test changed from <span
+                                    class="badge bg-danger">FAILED</span> to
+                                <span class="badge bg-success">PASSED</span>.
+                            </div>
+                            {% else %}
+                            <div class="alert alert-warning" role="alert">
+                                The test did <strong>not</strong> change from <span
+                                    class="badge bg-danger">FAILED</span> to
+                                <span class="badge bg-success">PASSED</span>.
+                            </div>
+                            {% endif %}
+                        </div>
+                        <form action="/add_to_report" method="post" class="mb-4">
+                            <input type="hidden" name="test_name" value="{{ test_name }}">
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success">
+                                    Add to Report
+                                </button>
+                            </div>
+                        </form>
+                        {% endif %}
+                        {% endif %}
+                        <hr>
+                        <div class="mt-4">
+                            <h5>Current Report</h5>
+                            <pre class="bg-light p-2 border rounded">{{ report | tojson(indent=2) }}</pre>
+                            <form action="/reset_report" method="post" class="mt-2">
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-outline-warning">
+                                        Reset Report
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal for reset confirmation -->
+    <div class="modal fade" id="resetModal" tabindex="-1" aria-labelledby="resetModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="/reset" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="resetModalLabel">Confirm Reset</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger text-center mb-0" role="alert">
+                            <strong>Warning:</strong> Going back will empty the cache and <b>reset the report</b>. You
+                            will need a new submission.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger fw-bold">Reset &amp; Return to Main Page</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

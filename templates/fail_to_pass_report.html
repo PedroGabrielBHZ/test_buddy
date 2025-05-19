@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Fail-to-Pass Report</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .floating-btn {
+            position: fixed;
+            top: 40px;
+            right: 8vw;
+            z-index: 1050;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        @media (max-width: 991px) {
+            .floating-btn {
+                position: static;
+                margin-bottom: 1rem;
+                width: 100%;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <a href="/check_test" class="btn btn-warning floating-btn fw-bold">Back to Check Test</a>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10 col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h1 class="card-title mb-0">Fail-to-Pass (F2P) Report</h1>
+                        </div>
+                        {% if fail_to_pass %}
+                        <div class="alert alert-success">
+                            <strong>{{ fail_to_pass|length }} test(s)</strong> changed from <span
+                                class="badge bg-danger">FAILED</span> to <span class="badge bg-success">PASSED</span>.
+                        </div>
+                        <ul class="list-group mb-3">
+                            {% for entry in fail_to_pass %}
+                            <li class="list-group-item">
+                                <div class="fw-bold">
+                                    {{ entry.name }}
+                                    {% if entry.not_unique_before or entry.not_unique_after %}
+                                    <span class="badge bg-danger ms-2">NOT UNIQUE</span>
+                                    {% endif %}
+                                </div>
+                                {% if entry.not_unique_before %}
+                                <div class="text-danger small mb-1">Warning: Multiple occurrences in BEFORE JSON</div>
+                                {% endif %}
+                                {% if entry.not_unique_after %}
+                                <div class="text-danger small mb-1">Warning: Multiple occurrences in AFTER JSON</div>
+                                {% endif %}
+                                <div>Status BEFORE: <span class="badge bg-danger">{{ entry.before_status }}</span></div>
+                                <div>Status AFTER: <span class="badge bg-success">{{ entry.after_status }}</span></div>
+                                <details class="mt-2">
+                                    <summary>Show JSON details</summary>
+                                    <div class="mt-2">
+                                        <strong>BEFORE:</strong>
+                                        <pre
+                                            class="bg-light p-2 border rounded">{{ entry.before | tojson(indent=2) }}</pre>
+                                        <strong>AFTER:</strong>
+                                        <pre
+                                            class="bg-light p-2 border rounded">{{ entry.after | tojson(indent=2) }}</pre>
+                                    </div>
+                                </details>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <div class="alert alert-info">
+                            No tests changed from <span class="badge bg-danger">FAILED</span> to <span
+                                class="badge bg-success">PASSED</span> in the current report.
+                        </div>
+                        {% endif %}
+                        <a href="/check_test" class="btn btn-primary mt-3 d-lg-none d-block">Back to Check Test</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
