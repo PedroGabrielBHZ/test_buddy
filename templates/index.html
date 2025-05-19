@@ -1,66 +1,118 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <title>Test Buddy</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
 
-<head>
-    <title>FastAPI with Form</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-
-<body class="bg-light">
+  <body class="bg-light">
     <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <div class="text-center mb-4">
-                            <h1 class="h3 mb-3 fw-bold">Submit Test Artifact Links</h1>
-                            <p class="text-muted text-start">
-                                Please enter any text containing the <span class="fw-semibold">before</span> and <span
-                                    class="fw-semibold">after</span> links for both <span
-                                    class="fw-semibold">JSON</span>
-                                and <span class="fw-semibold">log</span> files.
-                            </p>
-                        </div>
-                        <form action="/submit" method="post">
-                            <div class="mb-3">
-                                <textarea id="text_blob" name="text_blob" rows="10" cols="80" class="form-control"
-                                    placeholder="Paste the text with the four links here..."></textarea>
-                            </div>
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg">Submit</button>
-                            </div>
-                        </form>
-                        <hr>
-                        {% if warning %}
-                        <div class="alert alert-warning text-center" role="alert">
-                            {{ warning }}
-                        </div>
-                        {% endif %}
-                        {% if message %}
-                        <p class="mt-3 text-success text-center"><strong>{{ message }}</strong></p>
-                        {% endif %}
-                    </div>
+      <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <div class="text-center mb-4">
+                <h1 class="h3 mb-3 fw-bold">🛠️ F2P assertion tool 🛠️</h1>
+                <p class="text-muted text-start">
+                  Quickly parse JSON logs, both before and after the Golden
+                  Patch. You will be able to identify fail-to-pass tests, and
+                  easily build a simple JSON report.
+                </p>
+                <h2 class="h3 mb-3 fw-bold">Submit Test Artifact Links</h2>
+                <p class="text-muted text-start">
+                  Please enter any text containing the
+                  <span class="fw-semibold">before</span> and
+                  <span class="fw-semibold">after</span> links for both
+                  <span class="fw-semibold">JSON</span> and
+                  <span class="fw-semibold">log</span> files, such as the
+                  example below.
+                </p>
+                <div class="bg-light border rounded p-3 mb-3">
+                  <pre
+                    class="small mb-0"
+                    style="text-align: start; white-space: pre-line"
+                  >
+                some random text, it should be ignored...
+
+                Test Results Before JSON: https://somelink/some_number_before_test_result.json
+                Test Results Before Log: https://somelink/some_number_before_test_log.txt
+
+                some random text, it should be ignored...
+
+                Test Results After JSON: https://somelink/some_number_after_test_result.json
+                Test Results After Log: https://somelink/some_number_after_test_log.txt
+
+                some random text, it should be ignored...
+                </pre
+                  >
                 </div>
+                <h2 class="h3 mb-3 fw-bold">Submit text below</h2>
+              </div>
+              <form action="/submit" method="post">
+                <div class="mb-3">
+                  <textarea
+                    id="text_blob"
+                    name="text_blob"
+                    rows="10"
+                    cols="80"
+                    class="form-control"
+                    placeholder="Paste the text with the four links here..."
+                  ></textarea>
+                </div>
+                <div class="d-grid">
+                  <button type="submit" class="btn btn-primary btn-lg">
+                    Submit
+                  </button>
+                </div>
+              </form>
+              <hr />
+              {% if warning %}
+              <div class="alert alert-warning text-center" role="alert">
+                {{ warning }}
+              </div>
+              {% endif %} {% if message %}
+              <p class="mt-3 text-success text-center">
+                <strong>{{ message }}</strong>
+              </p>
+              {% endif %}
             </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Optionally add Bootstrap JS for interactivity (not required for this form) -->
     <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> -->
 
     <footer class="text-center mt-5 mb-3 text-muted small">
-        <hr>
-        Made with love <span title="coffee">☕</span> by <a href="https://www.linkedin.com/in/pedro-soares-34a81529a/"
-            target="_blank">Pedro Soares</a> |
-        <a href="https://github.com/PedroGabrielBHZ" target="_blank">GitHub</a> |
-        <a href="https://pedrogabrielbhz.github.io/website/" target="_blank">Website</a> |
-        <a href="https://github.com/PedroGabrielBHZ/test_buddy" target="_blank">Project Repo</a>
-        <br>
-        <span class="d-block mt-2">This is <strong>free software</strong> provided under the <a
-                href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a> and comes with <strong>NO
-                WARRANTY</strong>.<br>
-            You are free to use, modify, and distribute it as you wish.</span>
+      <hr />
+      Made with love <span title="coffee">☕</span> by
+      <a
+        href="https://www.linkedin.com/in/pedro-soares-34a81529a/"
+        target="_blank"
+        >Pedro Soares</a
+      >
+      |
+      <a href="https://github.com/PedroGabrielBHZ" target="_blank">GitHub</a> |
+      <a href="https://pedrogabrielbhz.github.io/website/" target="_blank"
+        >Website</a
+      >
+      |
+      <a href="https://github.com/PedroGabrielBHZ/test_buddy" target="_blank"
+        >Project Repo</a
+      >
+      <br />
+      <span class="d-block mt-2"
+        >This is <strong>free software</strong> provided under the
+        <a href="https://opensource.org/licenses/MIT" target="_blank"
+          >MIT License</a
+        >
+        and comes with <strong>NO WARRANTY</strong>.<br />
+        You are free to use, modify, and distribute it as you wish.</span
+      >
     </footer>
-</body>
-
+  </body>
 </html>
