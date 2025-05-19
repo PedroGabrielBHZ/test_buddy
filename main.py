@@ -99,7 +99,36 @@ async def submit_data(request: Request, text_blob: str = Form(...)):
             samesite="lax",
         )
         return template_response
-    before_json, before_log, after_json, after_log = (urls + [None] * 4)[:4]
+
+    # Robustly assign URLs regardless of order
+    before_json = before_log = after_json = after_log = None
+    for url in urls:
+        url_l = url.lower()
+        if "before" in url_l and "json" in url_l:
+            before_json = url
+        elif "before" in url_l and "log" in url_l:
+            before_log = url
+        elif "after" in url_l and "json" in url_l:
+            after_json = url
+        elif "after" in url_l and "log" in url_l:
+            after_log = url
+    if not all([before_json, before_log, after_json, after_log]):
+        user_cache.clear()
+        user_report["BEFORE"].clear()
+        user_report["AFTER"].clear()
+        warning = "Could not identify all required URLs (before/after, json/log) from the provided text. Please check your input."
+        template_response = templates.TemplateResponse(
+            "index.html",
+            {"request": request, "cache": user_cache, "warning": warning},
+        )
+        template_response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=session_id,
+            max_age=SESSION_COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+        )
+        return template_response
     user_cache["urls"] = urls
     user_cache["before_json_url"] = before_json
     user_cache["after_json_url"] = after_json
