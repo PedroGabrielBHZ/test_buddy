@@ -3,7 +3,7 @@ FROM python:3-alpine
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache build-base
 
 # Copy requirements if you have one, else install directly
 COPY requirements.txt .
